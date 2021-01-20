@@ -1,4 +1,13 @@
 '''
+This file builds polynomial mathematics in binary polynomials, 
+and exposes basic polynomial functions that can operate on any Galois field
+The high point of this is to get to the extended euclidean algorithm for polynomials
+so that we can compute the inverses that are used for sbox
+The next step from this is the xbox
+'''
+
+
+'''
 Gets the degree of the polynomial. 
 '''
 def degree(a):
@@ -26,7 +35,6 @@ def zero(a):
     removeLeadingZeros(a)
     return len(a) == 0
 
-
 '''
 Add two polynomials represented by the coeffcient array 
 '''
@@ -47,6 +55,10 @@ def add(a,b):
             result[i] = 1
     removeLeadingZeros(result)
     return result
+
+
+def subtract(a,b):
+    return add(a,b)
 
 '''
 multiple one term with a specific power 
@@ -73,8 +85,6 @@ def multiply(p1,p2):
 ''' 
     Returns the remainder polynomial coefficients given 
     divisor coefficient (c) , and the dividend (p)
-    Uses the extened euclidean algorithm
-    The logic is like this
     dividend = x^6 + x^4 + 1 will have the coeffs array as [0,1,0,1,0,0,0,1] 
     divisor = x^3 + x + 1 willl have coeffs array as [0,0,0,0,1,0,1,1]
     The algo is 
@@ -94,81 +104,60 @@ def multiply(p1,p2):
         New dividend is  x^2 + 1. degree diff with x^2 + 1 is 0, so mult x^2 + 1 with 1 and sub with dividend to 
         get 0
 '''
-def remainder(higher,lower):
-    if zero(lower):
+def mod(dividend, divisor): ## The remainder polynomial must have a degree lower than the divisor
+    if zero(divisor):
         raise ZeroDivisionError
-    dHigher = degree(higher)
-    dLower = degree(lower)
-    if dHigher < dLower:
-        return higher
-    else:        
-        multPoly = [0] * (dHigher - dLower + 1)
-        if len(multPoly):
-            multPoly[len(multPoly) -1 ] = 1        
-        result = multiply(lower,multPoly)
-        result = add(higher, result)
-        print(f'higher {higher} lower {lower} multpoly {multPoly}, result {result}' )
-        return remainder(result, lower)
-        
-    
+    degreeDividend = degree(dividend)
+    degreeDivisor = degree(divisor)
+    while ((degreeDividend >= degreeDivisor) and not zero(dividend)):
+        factor = [0] * (degreeDividend - degreeDivisor + 1)
+        factor[len(factor) -1 ] = 1        
+        result = add(dividend, multiply(divisor,factor))
+        dividend = result
+        degreeDividend = degree(dividend)
+        degreeDivisor = degree(divisor)
+    return dividend
 
-    
+def quotient(dividend, divisor): ## The remainder polynomial must have a degree lower than the divisor
+    if zero(divisor):
+        raise ZeroDivisionError
+    degreeDividend = degree(dividend)
+    degreeDivisor = degree(divisor)
+    quotient = []
+    while ((degreeDividend >= degreeDivisor) and not zero(dividend)):
+        factor = [0] * (degreeDividend - degreeDivisor + 1)
+        factor[len(factor) -1 ] = 1        
+        result = add(dividend, multiply(divisor,factor))
+        dividend = result
+        degreeDividend = degree(dividend)
+        degreeDivisor = degree(divisor)
+        quotient = add(quotient, factor)
+    return quotient
+
 '''
-Finds the inverse polynomial given the coefficents 
-of the input polynomial.
-The irreducible polynomial used is x^8 + x^4 + x^3 + x + 1
-The algorithm used is extended euclidean algorithm for polynomials
-The input is an array of 8 ints, each 0 or 1 
-The implementation is meant to demonstrate the working 
-and is not meant for efficiency
-Cinv(x) C(x) = 1 mod P(x)
-Divide P(x) + 1 [The irreducible polynomial is added to 1 so that we can get a 
-remainder of 1] 
+Run the extended eea algorithm to get the inverse
+r0 is the irreducible polynomial, r1 is the field element who inverse we are seeking
 '''
-def inverse(c) :
-    modulus = [0,1,0,1,1,0,0,0,1]
-    result = remainder(modulus,c)
-    return result
-    
+def eea(r0,r1,debug):
+    r = [ r0, r1 ]
+    t = [ [],[1]]
+    s = [ [1],[0]]
+    q = [ [] ]
+    index = 2
+    while True:
+        r.append(mod(r[index-2],r[index-1]))
+        q.append(quotient(r[index-2], r[index-1]))
+        t.append(subtract(t[index - 2],multiply(q[index - 1],t[index-1])))
+        s.append(subtract(s[index - 2], multiply(q[index - 1],s[index-1])))
+        if zero(r[index]):
+            break
+        index = index + 1
+        if (debug):
+            print(f'--------')
+            print(f'r {r}')
+            print(f'q {q}')
+            print(f's {s}')
+            print(f't {t}')
+    return t[index - 1 ]
 
-def testDegree():
-    src = [0,0,1,0,0]
-    d = degree(src)    
-    # should print 2
-    print(f'The degree of the polynomial is {d}')
-    d = degree([0,0,0,0,0,1,0,1])    
-    #should print 7
-    print(f'The degree of the polynomial is {d}')
-
-def testMultiply():
-    p1 = [ 0, 0, 1, 0 ,1]
-    p2 = [ 1, 1, 1,0]
-    result = multiply(p1,p2)
-# we are multiplying (x^2 + x^4 ) and ( 1 + x + x^2)
-#Should print [0, 0, 1, 1, 0, 1, 1]
-    print (result)
-
-
-def testAddPolynomials():
-    p1 = [ 0, 0, 1, 0, 1, 1, 0, 1,0]
-    p2 = [ 1, 0, 1, 1, 1, 0, 0, 1,1]
-    result = add(p2,p1)
-#should print [1, 0, 0, 1, 0, 1, 0, 0,1]
-    print (result)
-
-
-
-'''   
-x^6 + x^5 + x^4 + x^3 + x^2 + 1 when divided by x^2 + 1 gives x^4 +  x^3 + 1
-'''
-def testRemainder():
-    dividend = [ 1,0,1,1,1,1,1]
-    divisor = [1,0,1]
-    result = remainder(dividend, divisor)
-    ## reusult should be zero
-    print (result)
-
-testDegree()
-testMultiply()
-testAddPolynomials()
-testRemainder()
+# print(eea([1,1,0,1],[0,0,1], True))
